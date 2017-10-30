@@ -2,6 +2,8 @@
 header('Content-Type: application/octet-stream');
 header('Expires: Thu, 01 Dec 1983 20:00:00 GMT');
 header('Cache-Control: no-store');
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept");
 
 // file size in KB
 $file_size = (int)$_GET['size'];
