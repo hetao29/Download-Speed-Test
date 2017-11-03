@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, user-scalable=no">
-	<title>Connection Speed Test</title>
+	<title>云课直播测速工具</title>
 	<style>
 	* { font-family:"Helvetica Neue", Helvetica, Arial, sans-serif; }
 	body { color:#333; line-height:1.5em; text-align:center; }
@@ -14,27 +14,43 @@
 	#start[disabled] { color:#999; }
 	#start:not([disabled]):hover { background:#DDD; }
 	#start:not([disabled]):active { background:#AAA; }
+	#stop { padding:0.3em 0.6em; font-size:1.2em; cursor:pointer; background:#CCC; border:0; border-radius:1.5em; }
+	#stop[disabled] { color:#999; }
+	#stop:not([disabled]):hover { background:#DDD; }
+	#stop:not([disabled]):active { background:#AAA; }
 	</style>
 </head>
 <body>
-<h1>Speed Test</h1>
+<h1>云课直播测速工具</h1>
+<h3>IP:{{{$ip}}}</h3>
+<h5>{{{$info->area_name}}} {{{$info->area_desc}}}</h5>
+<h5>{{{$info->op_name}}} {{{$info->op_desc}}}</h5>
 <p>
-	<progress id="progress" max="5" value="0"></progress><br>
+	<progress id="progress" max="5" value="0" style="width:300px"></progress><br>
+	<span id="percentage"></span><span id="time"></span>
 	<span id="speed"></span>
 </p>
+<select id="host">
+	<option value="www.yunke.com">云课网站</option>
+	<option value="pub.yunke.com" selected>直播服务-华北1</option>
+	<option value="139.196.248.123">直播服务-华东2</option>
+	<option value="120.78.242.89">直播服务-华南1</option>
+	<option value="play-cdn.yunke.com">播放服务-云课线路</option>
+</select>
 <select id="direction">
-	<option value="download">Download</option>
-	<option value="upload">Upload</option>
+	<option value="download">下载</option>
+	<option value="upload" selected>上传</option>
 </select>
 <select id="size">
 	<option value="512">512KB</option>
 	<option value="1024">1MB</option>
 	<option value="2048">2MB</option>
-	<option value="4096" selected>4MB</option>
+	<option value="4096">4MB</option>
 	<option value="8192">8MB</option>
-	<option value="16384">16MB</option>
+	<option value="16384" selected>16MB</option>
 	<option value="32768">32MB</option>
 </select>
+<!--
 for
 <select id="count">
 	<option value="1">1</option>
@@ -59,31 +75,43 @@ for
 	<option value="20">20</option>
 </select>
 runs
-<button id="start">Start</button>
-<ol id="runs"></ol>
+-->
+<button id="start">开始测速</button>
+<button id="stop" disabled>停止</button>
 <script>
+var ot;//
+var st;//
+var xhr;//
+var oloaded;
 var el = {
 	progress: document.getElementById("progress"),
-	speed: document.getElementById("speed"),
+	//speed: document.getElementById("speed"),
+	host: document.getElementById("host"),
 	direction: document.getElementById("direction"),
 	size: document.getElementById("size"),
 	count: document.getElementById("count"),
-	runs: document.getElementById("runs"),
-	start: document.getElementById("start")
+	start: document.getElementById("start"),
+	stop: document.getElementById("stop")
 };
-var latencyResults = [];
-var speedResults = [];
+//var latencyResults = [];
+//var speedResults = [];
+var host="";
 
+el.stop.onclick = function (e) {
+	xhr.abort();
+	el.stop.disabled=true;
+	el.start.disabled=false;
+}
 el.start.onclick = function (e) {
-	latencyResults = [];
-	speedResults = [];
-	el.progress.max = el.count.value;
+	//latencyResults = [];
+	//speedResults = [];
+	//el.progress.max = el.count.value;
 	el.progress.value = 0;
-	while (el.runs.firstChild) {
-		el.runs.removeChild(el.runs.firstChild);
-	}
-	el.speed.textContent = "";
+	//el.speed.textContent = "";
 	this.disabled = true;
+	if(el.host.value!=""){
+		host = "//"+el.host.value;
+	}
 
 	switch (el.direction.value) {
 		case "download":
@@ -97,71 +125,112 @@ el.start.onclick = function (e) {
 
 function getDownload() {
 	console.log("getDownload() call: " + el.progress.value);
-	var xhr = new XMLHttpRequest();
-	xhr.open("get", "./payload.php?size=" + el.size.value, true);
-	var startTime = new Date().getTime(), downloadStartTime;
+	xhr = new XMLHttpRequest();
+	xhr.open("get", host+"/speed/payload.php?size=" + el.size.value, true);
 	xhr.onloadstart = function () {
-		downloadStartTime = new Date().getTime();
+		oloaded = 0;
+		ot = new Date().getTime();
+		st = new Date().getTime();
+		el.stop.disabled = false;
 	}
+	var progressBar = document.getElementById("progress");
+	progressBar.max = el.size.value*1024;
+	xhr.onprogress= onprogress;
 	xhr.onload = function () {
-		var latency = downloadStartTime - startTime;
-		var downloadTime = (new Date().getTime() - downloadStartTime) / 1000;
-		var speed = el.size.value / downloadTime;
-
-		latencyResults.push(latency);
-		speedResults.push(speed);
-
-		var li = document.createElement("li");
-		li.textContent = prettyLatency(latency) + " " + prettySpeed(speed);
-		el.runs.appendChild(li);
-		el.speed.textContent = "Average: " + prettyLatency(latencyResults.average()) + " " + prettySpeed(speedResults.average());
-
-		if (++el.progress.value < el.count.value) {
-			getDownload();
-		} else {
-			el.start.disabled = false;
-		}
+		el.start.disabled = false;
+		el.stop.disabled = true;
 	}
-	xhr.onerror = function () {
-		console.log("getDownload() error: " + xhr.statusText);
-		setTimeout(getDownload, 5000);
-	}
+	xhr.onerror = onerror ;
 	xhr.send();
 }
 
 function postUpload() {
 	console.log("postUpload() call:" + el.progress.value);
 	var blob = makeBlob(el.size.value);
-	var xhr = new XMLHttpRequest();
-	xhr.open("post", "./receiver.php", true);
-	var startTime = new Date().getTime(), uploadStartTime;
+	xhr = new XMLHttpRequest();
+	xhr.open("post", host+"/speed/receiver.php", true);
 	xhr.upload.onloadstart = function () {
-		uploadStartTime = new Date().getTime();
+		oloaded = 0;
+		ot = new Date().getTime();
+		st = new Date().getTime();
+		el.stop.disabled = false;
 	}
 	xhr.upload.onload = function () {
-		var latency = uploadStartTime - startTime;
-		var uploadTime = (new Date().getTime() - uploadStartTime) / 1000;
-		var speed = el.size.value / uploadTime;
-
-		latencyResults.push(latency);
-		speedResults.push(speed);
-
-		var li = document.createElement("li");
-		li.textContent = prettyLatency(latency) + " " + prettySpeed(speed);
-		el.runs.appendChild(li);
-		el.speed.textContent = "Average: " + prettyLatency(latencyResults.average()) + " " + prettySpeed(speedResults.average());
-
-		if (++el.progress.value < el.count.value) {
-			postUpload();
-		} else {
-			el.start.disabled = false;
-		}
+		el.start.disabled = false;
+		el.stop.disabled = true;
 	}
-	xhr.upload.onerror = function () {
-		console.log("postUpload() error: " + xhr.statusText);
-		setTimeout(postUpload, 5000);
-	}
+	xhr.upload.onerror = onerror ;
+	xhr.upload.onprogress= onprogress;
 	xhr.send(blob);
+}
+function onerror() {
+	time.innerHTML = '网络错误，请重试';
+	xhr.abort();
+	el.stop.disabled=true;
+	el.start.disabled=false;
+}
+function onprogress (evt) {
+
+	var progressBar = document.getElementById("progress");
+	var percentageDiv = document.getElementById("percentage");
+	if(evt.total){
+		total = progressBar.max = evt.total;
+	}else{
+		total = progressBar.max ;
+	}
+
+	//console.log(evt.total);
+	//console.log(evt.loaded);
+	progressBar.value = evt.loaded;
+	percentageDiv.innerHTML = Math.round(evt.loaded / total * 100) + "%";
+
+	var time = document.getElementById("time");
+	var nt = new Date().getTime();//获取当前时间
+	var pertime = (nt-ot)/1000; //计算出上次调用该方法时到现在的时间差，单位为s
+	var total_time = (nt-st)/1000;
+	ot = new Date().getTime(); //重新赋值时间，用于下次计算
+
+	var perload = evt.loaded - oloaded; //计算该分段上传的文件大小，单位b       
+	oloaded = evt.loaded;//重新赋值已上传文件大小，用以下次计算
+
+	//上传速度计算
+	if(pertime==0){
+		var speed = 0;
+	}else{
+		var speed = perload/pertime;//单位b/s
+	}
+	var speed_averge = evt.loaded/total_time;
+	var bspeed = speed_averge;
+	var units = 'B/s';//单位名称
+	if(speed/1024>1){
+		speed = speed/1024;
+		units = 'KB/s';
+	}
+	if(speed_averge/1024>1){
+		speed_averge = speed_averge/1024;
+		units_a = 'KB/s';
+	}
+	if(speed/1024>1){
+		speed= speed/1024;
+		units = 'MB/s';
+	}
+	if(speed_averge/1024>1){
+		speed_averge = speed_averge/1024;
+		units_a = 'MB/s';
+	}
+	speed = speed.toFixed(1);
+	speed_averge = speed_averge.toFixed(1);
+	//剩余时间
+	if(bspeed==0){
+		var resttime = "未知";
+	}else{
+		var resttime = ((total-evt.loaded)/bspeed).toFixed(1);
+	}
+	var total_time = total_time.toFixed(1);
+	//time.innerHTML = '，当前速度：'+speed+units+'，<strong>平均速度：'+speed_averge+units_a+'</strong>, 剩余时间：'+resttime+'s'+', 总耗时：'+total_time+'s';;
+	time.innerHTML = '，<strong>平均速度：'+speed_averge+units_a+'</strong>, 剩余时间：'+resttime+'s'+', 总耗时：'+total_time+'s';;
+	//if(bspeed==0)
+	//	time.innerHTML = '已取消';
 }
 
 function prettyLatency(latency) {
