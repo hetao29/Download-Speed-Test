@@ -31,11 +31,11 @@
 	<span id="speed"></span>
 </p>
 <select id="host">
-	<option value="www.yunke.com">云课网站</option>
-	<option value="pub.yunke.com" selected>直播服务-华北1</option>
-	<option value="139.196.248.123">直播服务-华东2</option>
-	<option value="120.78.242.89">直播服务-华南1</option>
-	<option value="play-cdn.yunke.com">播放服务-云课线路</option>
+	<option direction="download" value="">云课网站</option>
+	<option direction="download" value="" selected>直播服务-华北1</option>
+	<option direction="download" value="">直播服务-华东2</option>
+	<option direction="download" value="">直播服务-华南1</option>
+	<option direction="upload" value="">播放服务-云课线路</option>
 </select>
 <select id="direction">
 	<option value="download">下载</option>
@@ -96,7 +96,9 @@ var el = {
 //var latencyResults = [];
 //var speedResults = [];
 var host="";
-
+el.host.onchange=function(e){
+        el.direction.value = this.selectedOptions[0].getAttribute("direction");
+}
 el.stop.onclick = function (e) {
 	xhr.abort();
 	el.stop.disabled=true;
